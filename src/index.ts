@@ -1,24 +1,51 @@
 export default {
 	async fetch(request, env) {
-		const url = new URL(request.url)
-		const host = (url.hostname || '').toLowerCase()
+		const AUTH_KEY = env.AUTH_KEY ?? 'token'
+		const AUTH_VALUE = env.AUTH_VALUE ?? 'choose-a-secret'
+		const VALID_AUTH = AUTH_KEY + '=' + AUTH_VALUE
+		const cookies = request.headers.get('Cookie') || ''
 
-		const assetReq = new Request(new URL(`/${host}.html`, request.url))
-		let resp = await env.ASSETS.fetch(assetReq)
+		// Check for cookie or token in url to access site
+		if (cookies.includes(VALID_AUTH) || request.url.includes(VALID_AUTH)) {
+			// User has a valid token, so show the original page
+			const originalResponse = await fetch(request)
+			const response = new Response(originalResponse.body, originalResponse)
 
+			// Store token in cookie if not included already
+			if (!cookies.includes(VALID_AUTH)) {
+				const tokenCookie = `${VALID_AUTH}; Path=/;`
+				response.headers.set('Set-Cookie', tokenCookie)
+			}
+
+			return response
+		}
+
+		//Return maintenance page if no valid auth
+		const defaultMaintenancePage =
+			env.DEFAULT_MAINTENANCE_PAGE ?? 'cambridge.org.html'
+		const requestUrl = new URL(request.url)
+		const requestUrlHostname = (requestUrl.hostname || '').toLowerCase()
+
+		// Fetch the corresponding maintenance page
+		let resp = await env.ASSETS.fetch(
+			new Request(new URL(`/${requestUrlHostname}.html`, requestUrl))
+		)
+
+		// If the specific maintenance page is not found, fall back to the default
 		if (resp.status === 404) {
 			resp = await env.ASSETS.fetch(
-				new Request(new URL(`/cambridge.org.html`, request.url))
+				new Request(new URL(`/${defaultMaintenancePage}`, request.url))
 			)
 		}
 
+		const maintenancePageHeaders = new Headers()
+		maintenancePageHeaders.set('Content-Type', 'text/html')
+		maintenancePageHeaders.append('Pragma', 'no-cache')
+
 		return new Response(resp.body, {
+			headers: maintenancePageHeaders,
 			status: 503,
-			headers: {
-				'Content-Type': 'text/html; charset=UTF-8',
-				'Cache-Control': 'no-store',
-				'Retry-After': '3600'
-			}
+			statusText: 'Service Unavailable'
 		})
 	}
 }
