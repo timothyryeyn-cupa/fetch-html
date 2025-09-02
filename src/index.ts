@@ -7,7 +7,7 @@ function parseConfig(json) {
 		console.error('Invalid SITE_AUTH_CONFIG JSON:', e)
 		return {}
 	}
-},
+}
 
 async function maintenancePage(env, url, hostname) {
 	const page = await env.ASSETS.fetch(
@@ -71,5 +71,5 @@ export default {
 
 		// Show maintenance page
 		return maintenancePage(env, url, hostname)
-	},
+	}
 }
